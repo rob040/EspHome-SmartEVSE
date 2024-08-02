@@ -32,4 +32,7 @@ Alternatively, a removeable jumper, or alternate UART port pins may need to be u
 On PC, the commandline to compile and (USB or OTA) download is as simple as:
   `esphome run dsmr-mqtt-espc3.yaml`
 
+### secrets
+ESPhome (and Home Assistant) use [secret.yaml](https://esphome.io/guides/faq.html) files to to contain site (user-) specific entries. A template is included. You should copy the secret-template.yaml to secret.yaml and modify each line the '<' and '>' entries. Then copy the secret.yaml to each sub-directory with yaml files.
+
 
