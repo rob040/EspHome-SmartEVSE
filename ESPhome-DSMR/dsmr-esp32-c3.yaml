@@ -6,7 +6,7 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: DSMR reader to EVSE
-  comment: "DIY ESP-C3 module to read DSMR-5 smart meter P1 port and update EVSE"
+  comment: "DIY ESP32-C3 module to read DSMR-5 smart meter P1 port and update EVSE"
   min_version: 2024.6.0
   name_add_mac_suffix: false
   project:
@@ -26,11 +26,13 @@ logger:
 
 # Enable Home Assistant API
 api:
+  encryption:
+    key: !secret ha_api_key
 
 # Allow Over-The-Air updates
 ota:
 - platform: esphome
-  password: !secret esphome_ota_key_1
+  password: !secret esphome_ota_password
 
 wifi:
   # remove leading '#' and fill in your wifi details
@@ -40,7 +42,7 @@ wifi:
   # Set up a wifi access point
   ap:
     ssid: ${name} hotspot
-    password: !secret wifi_ap_key
+    password: !secret wifi_ap_password
   manual_ip:
     static_ip: !secret DSMR_IP
     gateway: 192.168.2.254
@@ -93,8 +95,21 @@ uart:
 #            off_length: 500ms
 #          update_interval: 0.9s
 
+# Status LED:
+# * Blink slowly (about every second) when a warning is active. Warnings are active when for example
+#   reading a sensor value fails temporarily, the WiFi/MQTT connections are disrupted, or if the
+#   native API component is included but no client is connected.
+# * Blink quickly (multiple times per second) when an error is active. Errors indicate that ESPHome
+#   has found an error while setting up. In most cases, ESPHome will still try to recover from the
+#   error and continue with all other operations.
+# * Stay off otherwise.
+#
+status_led:
+  id: status_led1
+  pin:
+    number: GPIO08  # status LED
+    inverted: true
 
- 
 dsmr:
   id: dsmr_instance
   max_telegram_length: 1700
@@ -199,7 +214,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l1).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l1).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l1).state - id(dsmr_phase_power_returned_l1).state) * 1000) / id(dsmr_phase_voltage_l1).state);
 
   - platform: template
@@ -210,7 +226,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l2).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l2).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l2).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l2).state - id(dsmr_phase_power_returned_l2).state) * 1000) / id(dsmr_phase_voltage_l2).state);
 
   - platform: template
@@ -221,7 +238,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l3).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l3).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l3).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l3).state - id(dsmr_phase_power_returned_l3).state) * 1000) / id(dsmr_phase_voltage_l3).state);
 
 # todo: find a way to reduce nr of outputs; update_interval: 300s isnt allowed
@@ -253,17 +271,22 @@ text_sensor:
 interval:
   - interval: 2sec
     then:
-      - http_request.post:
-          headers:
-            Content-Length: 0
-          url: !lambda |-
-            std::string url;
-            url.append("http://" "${SMARTevse_IP}" "/currents?L1=");
-            url.append(to_string(std::lround(id(current_l1_calc).state * 10.0)));
-            url.append("&L2=");
-            url.append(to_string(std::lround(id(current_l2_calc).state * 10.0)));
-            url.append("&L3=");
-            url.append(to_string(std::lround(id(current_l3_calc).state * 10.0)));
-            return url.c_str();
-
-
+      if:
+        condition:
+          lambda: 'return id(dsmr_phase_voltage_l1).state > 215;'
+        then:
+        - logger.log: "HTTP POST SMARTevse MainsMeter"
+        - http_request.post:
+            headers:
+              Content-Length: 0
+            url: !lambda |-
+              std::string url;
+              url.append("http://" "${SMARTevse_IP}" "/currents?L1=");
+              url.append(to_string(std::lround(id(current_l1_calc).state * 10.0)));
+              url.append("&L2=");
+              url.append(to_string(std::lround(id(current_l2_calc).state * 10.0)));
+              url.append("&L3=");
+              url.append(to_string(std::lround(id(current_l3_calc).state * 10.0)));
+              return url.c_str();
+        else:
+        - logger.log: "NO DSMR data to update SMARTevse"

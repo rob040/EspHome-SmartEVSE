@@ -6,7 +6,7 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: DSMR reader to MQTT and EVSE
-  comment: "DIY ESP-C3 module to read DSMR-5 smart meter P1 port send to MQTT and update EVSE"
+  comment: "DIY ESP32-C3 module to read DSMR-5 smart meter P1 port send to MQTT and update EVSE"
   min_version: 2024.6.0
   name_add_mac_suffix: false
   project:
@@ -24,13 +24,15 @@ logger:
   # also disable improv_serial
   #baud_rate: 0
 
-# Enable Home Assistant API
+# Enable Home Assistant API (NOT)
 #api:
+#  encryption:
+#    key: !secret ha_api_key
 
 # Allow Over-The-Air updates
 ota:
 - platform: esphome
-  password: !secret esphome_ota_key_1
+  password: !secret esphome_ota_password
 
 wifi:
   # remove leading '#' and fill in your wifi details
@@ -40,7 +42,7 @@ wifi:
   # Set up a wifi access point
   ap:
     ssid: ${name} hotspot
-    password: !secret wifi_ap_key
+    password: !secret wifi_ap_password
   manual_ip:
     static_ip: !secret DSMR_IP
     gateway: 192.168.2.254
@@ -76,6 +78,22 @@ uart:
   baud_rate: 115200
   rx_buffer_size: 1700
   rx_pin: GPIO20
+
+
+# Status LED:
+# * Blink slowly (about every second) when a warning is active. Warnings are active when for example
+#   reading a sensor value fails temporarily, the WiFi/MQTT connections are disrupted, or if the
+#   native API component is included but no client is connected.
+# * Blink quickly (multiple times per second) when an error is active. Errors indicate that ESPHome
+#   has found an error while setting up. In most cases, ESPHome will still try to recover from the
+#   error and continue with all other operations.
+# * Stay off otherwise.
+#
+status_led:
+  id: status_led1
+  pin:
+    number: GPIO08  # status LED
+    inverted: true
 
 dsmr:
   id: dsmr_instance
@@ -203,7 +221,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l1).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l1).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l1).state - id(dsmr_phase_power_returned_l1).state) * 1000) / id(dsmr_phase_voltage_l1).state);
 
   - platform: template
@@ -214,7 +233,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l2).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l2).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l2).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l2).state - id(dsmr_phase_power_returned_l2).state) * 1000) / id(dsmr_phase_voltage_l2).state);
 
   - platform: template
@@ -225,7 +245,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if ((id(dsmr_phase_voltage_l3).state) == 0) return 0; // div zero protection
+      if (id(dsmr_phase_voltage_l3).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l3).state)) return 0; // invalid value protection
       return (((id(dsmr_phase_power_delivered_l3).state - id(dsmr_phase_power_returned_l3).state) * 1000) / id(dsmr_phase_voltage_l3).state);
 
 text_sensor:
@@ -253,36 +274,22 @@ text_sensor:
 
 ################ Actions ################
 interval:
-  #- interval: 2sec
-  #  then:
-  #    - http_request.post:
-  #        url: !lambda |-
-  #          std::string url;
-  #          int l1 = std::lround(id(template_current_l1).state * 10.0);
-  #          int l2 = std::lround(id(template_current_l2).state * 10.0);
-  #          int l3 = std::lround(id(template_current_l3).state * 10.0);
-  #          url.append("http://");
-  #          url.append(!secret SMARTevse_IP); // 192.168.2.104
-  #          url.append("/currents?L1=");
-  #          url.append(to_string(l1));
-  #          url.append("&L2=");
-  #          url.append(to_string(l2));
-  #          url.append("&L3=");
-  #          url.append(to_string(l3));
-  #          return url.c_str();
-  #        headers:
-  #          Content-Length: 0
   - interval: 2sec
     then:
-      - mqtt.publish:
-          #topic: "SmartEVSE-7033/Set/MainsMeter"
-          topic: "${SMARTevse_topic}/Set/MainsMeter"
-          payload: !lambda |-
-              return 
-              to_string( std::lround(id(current_l1_calc).state * 10.0) )
-              + ":" +
-              to_string( std::lround(id(current_l2_calc).state * 10.0) )
-              + ":" +
-              to_string( std::lround(id(current_l3_calc).state * 10.0) );
-
+      if:
+        condition:
+          lambda: 'return id(dsmr_phase_voltage_l1).state > 215;'
+        then:
+        - logger.log: "MQTT publish SMARTevse MainsMeter"
+        - mqtt.publish:
+            topic: "${SMARTevse_topic}/Set/MainsMeter"
+            payload: !lambda |-
+                return 
+                to_string( std::lround(id(current_l1_calc).state * 10.0) )
+                + ":" +
+                to_string( std::lround(id(current_l2_calc).state * 10.0) )
+                + ":" +
+                to_string( std::lround(id(current_l3_calc).state * 10.0) );
+        else:
+        - logger.log: "NO DSMR data for MQTT publish"
 
