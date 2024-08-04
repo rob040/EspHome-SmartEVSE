@@ -23,6 +23,12 @@ logger:
   # disable logging with baud_rate: 0
   # also disable improv_serial
   baud_rate: 0
+  level: DEBUG
+  logs:
+    sensor: ERROR
+    #suppress Warning: [http_request.arduino:065]: Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 in your YAML, or use HTTPS
+    # bad suggestion; with 3.0.2 nothing will work!
+    http_request.arduino: ERROR
 
 # Enable Home Assistant API
 api:
@@ -62,6 +68,9 @@ captive_portal:
 
 web_server:
   port: 80
+  log: true
+  ota: false
+  version: 3
 
 http_request:
   useragent: esphome/device
@@ -70,7 +79,7 @@ http_request:
 
 uart:
   baud_rate: 115200
-  rx_buffer_size: 1700
+  rx_buffer_size: 1200
   #rx_pin: GPIO13 # RX UART2 pin D7 (allow logging I/O on UART0) -> uses SW uart, not good for 115k2
   #rx_pin: D7
   rx_pin: GPIO3 # RX pin; cannot coexist with logger TX out
@@ -92,7 +101,7 @@ status_led:
 
 dsmr:
   id: dsmr_instance
-  max_telegram_length: 1700
+  max_telegram_length: 1200
 
 switch:
  - platform: safe_mode
@@ -116,10 +125,14 @@ sensor:
       name: "DSMR Power Consumed"
       accuracy_decimals: 3
       id: power_delivered
+      filters:
+      - timeout: 10s # return NAN upon 10s timeout
     power_returned:
       name: "DSMR Power Produced"
       accuracy_decimals: 3
       id: power_returned
+      filters:
+      - timeout: 10s # return NAN upon 10s timeout
 #    electricity_failures:
 #      name: "Electricity Failures"
 #      icon: mdi:alert
@@ -130,14 +143,21 @@ sensor:
       name: "DSMR Voltage Phase 1"
       id: dsmr_phase_voltage_l1
       accuracy_decimals: 0
+      filters:
+      - timeout: 10s # return NAN upon 10s timeout
     voltage_l2:
       name: "DSMR Voltage Phase 2"
       id: dsmr_phase_voltage_l2
       accuracy_decimals: 0
+      filters:
+      - timeout: 10s # return NAN upon 10s timeout
     voltage_l3:
       name: "DSMR Voltage Phase 3"
       id: dsmr_phase_voltage_l3
       accuracy_decimals: 0
+      filters:
+      - timeout: 10s # return NAN upon 10s timeout
+
 #not used
 #    current_l1:
 #      name: "DSMR Current Phase 1"
@@ -195,8 +215,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if (id(dsmr_phase_voltage_l1).state == 0) return 0; // div zero protection
-      if (isnan(id(dsmr_phase_voltage_l1).state)) return 0; // invalid value protection
+      if (id(dsmr_phase_voltage_l1).state == 0) return NAN; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return NAN; // invalid value protection, data rx timeout
       return (((id(dsmr_phase_power_delivered_l1).state - id(dsmr_phase_power_returned_l1).state) * 1000) / id(dsmr_phase_voltage_l1).state);
   - platform: template
     id: current_l2_calc
@@ -206,8 +226,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if (id(dsmr_phase_voltage_l2).state == 0) return 0; // div zero protection
-      if (isnan(id(dsmr_phase_voltage_l2).state)) return 0; // invalid value protection
+      if (id(dsmr_phase_voltage_l2).state == 0) return NAN; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return NAN; // invalid value protection, data rx timeout
       return (((id(dsmr_phase_power_delivered_l2).state - id(dsmr_phase_power_returned_l2).state) * 1000) / id(dsmr_phase_voltage_l2).state);
   - platform: template
     id: current_l3_calc
@@ -217,8 +237,8 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: A
     lambda: |-
-      if (id(dsmr_phase_voltage_l3).state == 0) return 0; // div zero protection
-      if (isnan(id(dsmr_phase_voltage_l3).state)) return 0; // invalid value protection
+      if (id(dsmr_phase_voltage_l3).state == 0) return NAN; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return NAN; // invalid value protection, data rx timeout
       return (((id(dsmr_phase_power_delivered_l3).state - id(dsmr_phase_power_returned_l3).state) * 1000) / id(dsmr_phase_voltage_l3).state);
 
 
@@ -254,9 +274,11 @@ interval:
     then:
       if:
         condition:
-          lambda: 'return id(dsmr_phase_voltage_l1).state > 215;'
+          lambda: 'return ((id(dsmr_phase_voltage_l1).state > 215) && (!isnan(id(current_l1_calc).state)));'
         then:
-        - logger.log: "HTTP POST SMARTevse MainsMeter"
+        - logger.log: 
+            format: "HTTP POST SMARTevse currents L1 %.2f, L2 %.2f, L3 %.2f A"
+            args: [ 'id(current_l1_calc).state',  'id(current_l2_calc).state', 'id(current_l3_calc).state' ]
         - http_request.post:
             headers:
               Content-Length: 0
