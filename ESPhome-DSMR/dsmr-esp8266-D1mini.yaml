@@ -1,7 +1,7 @@
 substitutions:
   name: dsmr
   SMARTevse_IP: !secret SMARTevse_IP
-  myVersion: "v1.0 20240804"
+  myVersion: "v1.01 20240804"
 
 esphome:
   name: ${name}
