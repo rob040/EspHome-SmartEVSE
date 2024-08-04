@@ -18,14 +18,11 @@ There are two different ways of sending MainsMeter data to SmartEVSE:
 For ESP hardware, I use the very cheap ESP32-C3-mini (RISC-V) modules. Also the ESP32 D1 mini (based on Lolin Wemos D1 mini with old ESP8266).
 Instead of an ESP32, the older lower performing ESP8266 will be possible as well, as they all are supported by ESPhome and PlatformIO, but has not been tested.
 
-[ESP32-C3-mini](/images/esp32c3-supermini-pcb.png)
-_The ESP32-C3-mini module._
+| _The ESP32-C3-mini module._ | _The ESP32 D1 mini module._ |
+| ![ESP32-C3-mini](/images/esp32c3-supermini-pcb.webp) | ![ESP32 D1 mini](/images/ESP32-04-D1Mini.webp) |
 
-[ESP32 D1 mini](/images/ESP32-04-D1Mini.webp)
-_The ESP32 D1 mini module._
-
-On ESP32-C3-mini board, only the Ground, +5V and RX are connected to the P1-port inverter.
-[Connection diagram](/images/dsmr-water-esp32-c3-schema.png)
+On ESP32-C3-mini board, only the Ground, +5V and RX are connected to the P1-port inverter.<br>
+![Connection diagram](/images/dsmr-water-esp32-c3-schema.webp)
 
 ### note:
 When using ESP boards that have USB to serial chip on board (like the D1 mini), one must be carefull about what is connected to the RX line; The USB to serial chip must have series resistor AND the P1-port inverter must be silenced when programming the ESP via USB serial port. 
