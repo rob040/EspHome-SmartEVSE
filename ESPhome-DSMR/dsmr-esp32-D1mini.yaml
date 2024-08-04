@@ -1,0 +1,292 @@
+substitutions:
+  name: dsmr
+  SMARTevse_IP: !secret SMARTevse_IP
+
+
+esphome:
+  name: ${name}
+  friendly_name: DSMR reader to EVSE
+  comment: "DIY ESP32 D1-mini module to read DSMR-5 smart meter P1 port and update EVSE"
+  min_version: 2024.6.0
+  name_add_mac_suffix: false
+  project:
+    name: esphome.cmd
+    version: '1.0'
+
+esp32:
+  board: wemos_d1_mini32
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  # disable logging with baud_rate: 0
+  # also disable improv_serial
+  #baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret ha_api_key
+
+# Allow Over-The-Air updates
+ota:
+- platform: esphome
+  password: !secret esphome_ota_password
+
+wifi:
+  # remove leading '#' and fill in your wifi details
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # Set up a wifi access point
+  ap:
+    ssid: ${name} hotspot
+    password: !secret wifi_ap_password
+  manual_ip:
+    static_ip: !secret DSMR_IP
+    gateway: 192.168.2.254
+    subnet: 255.255.0.0
+
+# import dashboard in HA; requires Home Assistant API
+#dashboard_import:
+#  package_import_url: github://esphome/firmware/esphome-web/esp32c3.yaml@main
+#  import_full_config: true
+
+# In combination with the `ap` this allows the user
+# to provision wifi credentials to the device via WiFi AP.
+captive_portal:
+
+# Allow provisioning Wi-Fi via serial, requires logger
+#improv_serial:
+
+# Sets up Bluetooth LE (Only on ESP32) to allow the user
+# to provision wifi credentials to the device.
+#esp32_improv:
+#  authorizer: none
+
+# To have a "next url" for improv serial
+web_server:
+  port: 80
+
+http_request:
+  useragent: esphome/device
+  timeout: 2s
+  verify_ssl: false
+
+uart:
+  baud_rate: 115200
+  rx_buffer_size: 1700
+  rx_pin: GPIO20
+
+#light:
+#  - platform: status_led
+#    name: "activity status"
+#    id: status_led1
+#    pin:
+#      number: GPIO08  # status LED
+#      inverted: true
+#    effects:
+#      - pulse:
+#      - pulse:
+#          name: "Pulse"
+#          transition_length:
+#            on_length: 200ms
+#            off_length: 500ms
+#          update_interval: 0.9s
+
+# Status LED:
+# * Blink slowly (about every second) when a warning is active. Warnings are active when for example
+#   reading a sensor value fails temporarily, the WiFi/MQTT connections are disrupted, or if the
+#   native API component is included but no client is connected.
+# * Blink quickly (multiple times per second) when an error is active. Errors indicate that ESPHome
+#   has found an error while setting up. In most cases, ESPHome will still try to recover from the
+#   error and continue with all other operations.
+# * Stay off otherwise.
+#
+status_led:
+  id: status_led1
+  pin:
+    number: GPIO02  # status LED
+    inverted: false
+
+dsmr:
+  id: dsmr_instance
+  max_telegram_length: 1700
+
+switch:
+ - platform: safe_mode
+   name: "Restart In Safe Mode"
+
+sensor:
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: "DSMR Energy Consumed Tariff 1"
+      id: energy_delivered_tariff1
+    energy_delivered_tariff2:
+      name: "DSMR Energy Consumed Tariff 2"
+      id: energy_delivered_tariff2
+    energy_returned_tariff1:
+      name: "DSMR Energy Produced Tariff 1"
+      id: energy_returned_tariff1
+    energy_returned_tariff2:
+      name: "DSMR Energy Produced Tariff 2"
+      id: energy_returned_tariff2
+    power_delivered:
+      name: "DSMR Power Consumed"
+      accuracy_decimals: 3
+      id: power_delivered
+    power_returned:
+      name: "DSMR Power Produced"
+      accuracy_decimals: 3
+      id: power_returned
+#    electricity_failures:
+#      name: "Electricity Failures"
+#      icon: mdi:alert
+#    electricity_long_failures:
+#      name: "Long Electricity Failures"
+#      icon: mdi:alert
+    voltage_l1:
+      name: "DSMR Voltage Phase 1"
+      id: dsmr_phase_voltage_l1
+      accuracy_decimals: 0
+    voltage_l2:
+      name: "DSMR Voltage Phase 2"
+      id: dsmr_phase_voltage_l2
+      accuracy_decimals: 0
+    voltage_l3:
+      name: "DSMR Voltage Phase 3"
+      id: dsmr_phase_voltage_l3
+      accuracy_decimals: 0
+    current_l1:
+      name: "DSMR Current Phase 1"
+      id: dsmr_phase_current_l1
+      accuracy_decimals: 0
+      # NOTE: current delivered from dsmr is always positive and in whole A; current_l1_calc has 1 decimal and current_phase_1_calc is full resolution.
+    current_l2:
+      name: "DSMR Current Phase 2"
+      id: dsmr_phase_current_l2
+      accuracy_decimals: 0
+    current_l3:
+      name: "DSMR Current Phase 3"
+      id: dsmr_phase_current_l3
+      accuracy_decimals: 0
+    power_delivered_l1:
+      name: "DSMR Power Consumed Phase 1"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_delivered_l1
+    power_delivered_l2:
+      name: "DSMR Power Consumed Phase 2"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_delivered_l2
+    power_delivered_l3:
+      name: "DSMR Power Consumed Phase 3"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_delivered_l3
+    power_returned_l1:
+      name: "DSMR Power Produced Phase 1"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_returned_l1
+    power_returned_l2:
+      name: "DSMR Power Produced Phase 2"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_returned_l2
+    power_returned_l3:
+      name: "DSMR Power Produced Phase 3"
+      accuracy_decimals: 3
+      id: dsmr_phase_power_returned_l3
+    gas_delivered:
+      name: "DSMR Gas Consumed"
+      id: dsmr_gas_delivered
+      accuracy_decimals: 3
+  - platform: uptime
+    name: "DSMR Uptime"
+    update_interval: 60s
+  - platform: wifi_signal
+    name: "DSMR Wi-Fi Signal"
+    update_interval: 60s
+
+  - platform: template
+    id: current_l1_calc
+    name: "DSMR Current L1 Calculated"
+    update_interval: 2s
+    device_class: "current"
+    state_class: "measurement"
+    unit_of_measurement: A
+    lambda: |-
+      if (id(dsmr_phase_voltage_l1).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l1).state)) return 0; // invalid value protection
+      return (((id(dsmr_phase_power_delivered_l1).state - id(dsmr_phase_power_returned_l1).state) * 1000) / id(dsmr_phase_voltage_l1).state);
+
+  - platform: template
+    id: current_l2_calc
+    name: "DSMR Current L2 Calculated"
+    update_interval: 2s
+    device_class: "current"
+    state_class: "measurement"
+    unit_of_measurement: A
+    lambda: |-
+      if (id(dsmr_phase_voltage_l2).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l2).state)) return 0; // invalid value protection
+      return (((id(dsmr_phase_power_delivered_l2).state - id(dsmr_phase_power_returned_l2).state) * 1000) / id(dsmr_phase_voltage_l2).state);
+
+  - platform: template
+    id: current_l3_calc
+    name: "DSMR Current L3 Calculated"
+    update_interval: 2s
+    device_class: "current"
+    state_class: "measurement"
+    unit_of_measurement: A
+    lambda: |-
+      if (id(dsmr_phase_voltage_l3).state == 0) return 0; // div zero protection
+      if (isnan(id(dsmr_phase_voltage_l3).state)) return 0; // invalid value protection
+      return (((id(dsmr_phase_power_delivered_l3).state - id(dsmr_phase_power_returned_l3).state) * 1000) / id(dsmr_phase_voltage_l3).state);
+
+# todo: find a way to reduce nr of outputs; update_interval: 300s isnt allowed
+text_sensor:
+  - platform: dsmr
+    identification:
+      name: "DSMR Identification"
+      entity_category: diagnostic
+    p1_version:
+      name: "DSMR Version"
+      entity_category: diagnostic
+  - platform: wifi_info
+    ip_address:
+      name: "DSMR IP Address"
+      entity_category: diagnostic
+    ssid:
+      name: "DSMR Wi-Fi SSID"
+      entity_category: diagnostic
+    bssid:
+      name: "DSMR Wi-Fi BSSID"
+      entity_category: diagnostic
+  - platform: version
+    #update_interval: 300s
+    name: "ESPHome Version"
+    entity_category: diagnostic
+    hide_timestamp: true
+
+################ Actions ################
+interval:
+  - interval: 2sec
+    then:
+      if:
+        condition:
+          lambda: 'return id(dsmr_phase_voltage_l1).state > 215;'
+        then:
+        - logger.log: "HTTP POST SMARTevse MainsMeter"
+        - http_request.post:
+            headers:
+              Content-Length: 0
+            url: !lambda |-
+              std::string url;
+              url.append("http://" "${SMARTevse_IP}" "/currents?L1=");
+              url.append(to_string(std::lround(id(current_l1_calc).state * 10.0)));
+              url.append("&L2=");
+              url.append(to_string(std::lround(id(current_l2_calc).state * 10.0)));
+              url.append("&L3=");
+              url.append(to_string(std::lround(id(current_l3_calc).state * 10.0)));
+              return url.c_str();
+        else:
+        - logger.log: "NO DSMR data to update SMARTevse"
