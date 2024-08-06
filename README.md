@@ -16,7 +16,7 @@ There are two different ways of sending MainsMeter data to SmartEVSE:
 
 ## Hardware
 For ESP hardware, I use the very cheap ESP32-C3-mini (RISC-V) modules. Also the ESP32 D1 mini (based on Lolin Wemos D1 mini with old ESP8266).
-Instead of an ESP32, the older lower performing ESP8266 will be possible as well, as they all are supported by ESPhome and PlatformIO, but has not been tested.
+Instead of an ESP32, the older lower performing ESP8266 will be possible as well, as they all are supported by ESPhome and PlatformIO and do work equally well.
 
 _The ESP32-C3-mini module._<br>
 ![ESP32-C3-mini](/images/esp32c3-supermini-pcb.webp)<br>
