@@ -32,7 +32,7 @@ When using the optional water sensor<br>
 
 ### note:
 When using ESP boards that have USB to serial chip on board (like the D1 mini), one must be carefull about what is connected to the RX line; The USB to serial chip must have series resistor AND the P1-port inverter must be silenced when programming the ESP via USB serial port. 
-Alternatively, a removeable jumper, or alternate UART port pins may need to be used for P1 data input.
+Alternatively, a removeable jumper to disconnect the P1 data input, or completely remove the ESP board when socketed, when programming the ESP via USB serial port. Normally this needs only happen for the first time programming, since the Wifi remote update (OTA) is very conveniant and quick.
 
 ## Software
 [ESPhome](https://esphome.io/) is needed to program the ESP32 chip, with the here provided yaml scripts as input. It can be run from within [Home Assistant](https://esphome.io/guides/getting_started_hassio) or as a [Python add-on on a PC](https://esphome.io/guides/getting_started_command_line). See the [ESPhome](https://esphome.io/) __Getting Started__ pages. For me, the compilation from PC commandline is much faster (at most 30s) than from within HomeAssistant (15 minutes on Rpi-3B).
